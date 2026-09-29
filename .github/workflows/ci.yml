@@ -1,0 +1,38 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Secret/PII scan
+        run: python scripts/scan_repo.py
+      - name: Unit tests
+        run: python -m pytest -q
+      - name: Dashboard contract
+        run: python scripts/validate_dashboard.py
+      - name: End-to-end log check (no Langfuse keys -> tracing disabled)
+        run: |
+          python -m uvicorn app.main:app --port 8000 &
+          for i in $(seq 1 30); do curl -sf http://127.0.0.1:8000/health && break; sleep 1; done
+          python scripts/load_test.py --concurrency 5
+          python scripts/validate_logs.py | tee validate_logs.txt
+          grep -q "Estimated Score: 100/100" validate_logs.txt
+          python scripts/dashboard.py --out dashboard.html
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: runtime-output
+          path: |
+            validate_logs.txt
+            dashboard.html

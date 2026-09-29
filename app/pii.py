@@ -11,7 +11,7 @@ PII_PATTERNS: dict[str, str] = {
     "credit_card": r"(?<!\d)\d{4}[- ]?\d{4}[- ]?\d{4}[- ]?\d{4}(?!\d)",
     "cccd": r"(?<!\d)\d{12}(?!\d)",
     "phone_vn": r"(?<!\d)(?:\+84|0)(?:[ .-]?\d){9}(?!\d)",
-    # Hộ chiếu Việt Nam: 1 chữ cái in hoa + 7 chữ số, ví dụ C1234567.
+    # Hộ chiếu Việt Nam: 1 chữ cái in hoa + 7 chữ số (dạng X + 7 số).
     "passport_vn": r"\b[A-Z]\d{7}\b",
 }
 
