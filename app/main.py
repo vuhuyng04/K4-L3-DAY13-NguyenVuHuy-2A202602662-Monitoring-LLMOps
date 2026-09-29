@@ -4,6 +4,7 @@ import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse
 from structlog.contextvars import bind_contextvars
 
@@ -14,7 +15,7 @@ from .metrics import record_error, snapshot
 from .middleware import CorrelationIdMiddleware
 from .pii import hash_user_id, summarize_text
 from .schemas import ChatRequest, ChatResponse
-from .tracing import tracing_enabled
+from .tracing import get_langfuse_client, tracing_enabled
 
 configure_logging()
 log = get_logger()
@@ -30,6 +31,9 @@ async def lifespan(_: FastAPI):
         payload={"tracing_enabled": tracing_enabled()},
     )
     yield
+    # SDK gửi span theo batch; flush khi shutdown để không mất các trace cuối cùng.
+    if tracing_enabled():
+        get_langfuse_client().flush()
 
 
 app = FastAPI(title="Day 13 Monitoring & LLMOps Lab", lifespan=lifespan)
@@ -48,16 +52,24 @@ async def metrics() -> dict:
 
 @app.post("/chat", response_model=ChatResponse)
 async def chat(request: Request, body: ChatRequest) -> ChatResponse:
-    # TODO: Enrich logs with request context (user_id_hash, session_id, feature, model, env)
-    # bind_contextvars(...)
-    
+    bind_contextvars(
+        user_id_hash=hash_user_id(body.user_id),
+        session_id=body.session_id,
+        feature=body.feature,
+        model=agent.model,
+        env=os.getenv("APP_ENV", "dev"),
+    )
+
     log.info(
         "request_received",
         service="api",
-        payload={"message_preview": summarize_text(body.message)},
+        payload={"message_preview": summarize_text(body.message, max_len=200)},
     )
     try:
-        result = agent.run(
+        # agent.run là code đồng bộ (sleep/IO); chạy trong threadpool để không chặn event
+        # loop, nếu không các request đồng thời phải xếp hàng và latency client tăng vọt.
+        result = await run_in_threadpool(
+            agent.run,
             user_id=body.user_id,
             feature=body.feature,
             session_id=body.session_id,
@@ -98,7 +110,11 @@ async def chat(request: Request, body: ChatRequest) -> ChatResponse:
             tool_success=False if isinstance(exc, RuntimeError) else None,
             payload={"detail": str(exc), "message_preview": summarize_text(body.message)},
         )
-        raise HTTPException(status_code=500, detail=error_type) from exc
+        # Trả correlation_id cả khi lỗi để client/on-call tra ngược được log và trace.
+        return JSONResponse(
+            status_code=500,
+            content={"detail": error_type, "correlation_id": request.state.correlation_id},
+        )
 
 
 @app.post("/incidents/{name}/enable")
