@@ -27,6 +27,27 @@ def _compile_local_prompt(*, feature: str, docs: list[str], message: str) -> str
     )
 
 
+def warm_prompt_cache(client: Any) -> dict[str, str]:
+    """Fetch prompt theo đúng name/label app dùng để nạp cache SDK lúc khởi động."""
+    name = os.getenv("LANGFUSE_PROMPT_NAME", "day13-chat")
+    label = os.getenv("LANGFUSE_PROMPT_LABEL", "production")
+    try:
+        prompt = client.get_prompt(
+            name,
+            label=label,
+            type="text",
+            fallback=DEFAULT_PROMPT_TEMPLATE,
+            cache_ttl_seconds=60,
+            fetch_timeout_seconds=2,
+            max_retries=0,
+        )
+    except Exception as exc:
+        return {"prompt_name": name, "prompt_label": label, "status": type(exc).__name__}
+    if getattr(prompt, "is_fallback", False):
+        return {"prompt_name": name, "prompt_label": label, "status": "fallback"}
+    return {"prompt_name": name, "prompt_label": label, "status": "ok", "prompt_version": str(prompt.version)}
+
+
 def resolve_prompt(
     client: Any,
     *,

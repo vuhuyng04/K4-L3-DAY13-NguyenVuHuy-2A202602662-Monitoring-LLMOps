@@ -1,0 +1,39 @@
+# 04 - Structured log (data/logs.jsonl), 1 request thường
+{
+  "service": "api",
+  "payload": {
+    "message_preview": "Summarize the monitoring policy"
+  },
+  "event": "request_received",
+  "user_id_hash": "95b6504a8bd6",
+  "correlation_id": "req-0000106a",
+  "feature": "summary",
+  "model": "claude-sonnet-4-5",
+  "session_id": "s02",
+  "env": "dev",
+  "level": "info",
+  "ts": "2026-09-29T07:48:30.565644Z"
+}
+{
+  "service": "api",
+  "latency_ms": 155,
+  "ttft_ms": 50,
+  "tokens_in": 38,
+  "tokens_out": 111,
+  "cost_usd": 0.001779,
+  "quality_score": 0.8,
+  "tool_name": "retrieval",
+  "tool_success": true,
+  "payload": {
+    "answer_preview": "Starter answer. You should improve this output logic and add better quality chec..."
+  },
+  "event": "response_sent",
+  "user_id_hash": "95b6504a8bd6",
+  "correlation_id": "req-0000106a",
+  "feature": "summary",
+  "model": "claude-sonnet-4-5",
+  "session_id": "s02",
+  "env": "dev",
+  "level": "info",
+  "ts": "2026-09-29T07:48:30.724936Z"
+}
