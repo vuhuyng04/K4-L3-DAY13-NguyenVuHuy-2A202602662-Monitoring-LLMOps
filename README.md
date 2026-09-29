@@ -34,6 +34,10 @@ Sau lab, bạn có thể:
 
 ## Bắt đầu nhanh
 
+> Dùng Python 3.11–3.13. Với Python 3.14, `pydantic==2.11.4` chưa có wheel dựng sẵn; trên Windows tạo venv bằng `py -3.13 -m venv .venv`.
+
+> Công cụ bổ sung của bài làm: `python scripts/dashboard.py --serve` (dashboard 6 panel, http://127.0.0.1:8050), `python scripts/prompt_versions.py setup|show|promote N|rollback N` (prompt v1/v2), `python scripts/scan_repo.py` (quét secret/PII trước khi push).
+
 Windows PowerShell:
 
 ```powershell
