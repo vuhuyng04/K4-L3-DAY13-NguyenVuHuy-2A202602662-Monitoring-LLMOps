@@ -19,6 +19,8 @@ $ python -c "import json;[print(r[\"ts\"],r[\"correlation_id\"],r[\"feature\"],r
 
 ## Số request_failed trong khoảng sự cố
 0
+
+## Bước 3 (fix): tắt incident lúc 09:36:40 UTC rồi chạy lại `python scripts/load_test.py --challenge --concurrency 5`
 Challenge: day13-k4-l3a-monitoring-llmops-v1 | Cohort: K4
 [200] req-c12fb50f | monitoring | 190.9ms
 [200] req-5cee3f88 | monitoring | 199.4ms

@@ -19,8 +19,8 @@
 | Pytest cuối | [evidence/01-pytest.txt](evidence/01-pytest.txt) |
 | Log validator | [evidence/02-log-validator.txt](evidence/02-log-validator.txt) |
 | Dashboard validator | [evidence/03-dashboard-validator.txt](evidence/03-dashboard-validator.txt) |
-| Structured log | [evidence/04-structured-log.txt](evidence/04-structured-log.txt) |
-| PII redaction | [evidence/05-pii-redaction.txt](evidence/05-pii-redaction.txt) |
+| Structured log | [evidence/04-structured-log.png](evidence/04-structured-log.png) (output gốc: [.txt](evidence/04-structured-log.txt)) |
+| PII redaction | [evidence/05-pii-redaction.png](evidence/05-pii-redaction.png) (output gốc: [.txt](evidence/05-pii-redaction.txt)) |
 | Trace list | [evidence/06-trace-list.png](evidence/06-trace-list.png) |
 | Trace waterfall | [evidence/07-trace-waterfall.png](evidence/07-trace-waterfall.png) (trace `req-5c2b5962`, practice `rag_slow`) |
 | Trace metadata | [evidence/08-trace-metadata.png](evidence/08-trace-metadata.png) |
@@ -28,9 +28,20 @@
 | Prompt rollback | trước: [evidence/10a-prompt-promote-v2.png](evidence/10a-prompt-promote-v2.png) (production = v2) → sau: [evidence/10-prompt-rollback.png](evidence/10-prompt-rollback.png) (production = v1); log CLI: [evidence/10-prompt-rollback-cli.txt](evidence/10-prompt-rollback-cli.txt) |
 | Dashboard runtime | [evidence/11-dashboard-overview.png](evidence/11-dashboard-overview.png) |
 | Incident metric | [evidence/12-incident-metric.png](evidence/12-incident-metric.png) |
-| Incident log | [evidence/13-incident-log.txt](evidence/13-incident-log.txt) |
+| Incident log | [evidence/13-incident-log.png](evidence/13-incident-log.png) (output gốc: [.txt](evidence/13-incident-log.txt)) |
 | Incident trace | [evidence/14-incident-trace.png](evidence/14-incident-trace.png), [evidence/14b-incident-trace-span.png](evidence/14b-incident-trace-span.png) |
 | Baseline (trước khi sửa) | [evidence/baseline/](evidence/baseline/) |
+
+### Ảnh evidence
+
+| | |
+|---|---|
+| ![04 Structured log](evidence/04-structured-log.png) | ![05 PII redaction](evidence/05-pii-redaction.png) |
+| ![06 Trace list](evidence/06-trace-list.png) | ![07 Trace waterfall](evidence/07-trace-waterfall.png) |
+| ![08 Trace metadata](evidence/08-trace-metadata.png) | ![09 Prompt versions](evidence/09-prompt-versions.png) |
+| ![10a Promote production -> v2](evidence/10a-prompt-promote-v2.png) | ![10 Rollback production -> v1](evidence/10-prompt-rollback.png) |
+| ![11 Dashboard overview](evidence/11-dashboard-overview.png) | ![12 Incident metric](evidence/12-incident-metric.png) |
+| ![13 Incident log](evidence/13-incident-log.png) | ![14 Incident trace](evidence/14-incident-trace.png) |
 
 ## 3. Kết quả kỹ thuật
 
