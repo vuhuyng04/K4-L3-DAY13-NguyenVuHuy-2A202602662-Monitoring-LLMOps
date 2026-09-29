@@ -1,0 +1,29 @@
+# 13 - Incident log (challenge day13-k4-l3a-monitoring-llmops-v1), nguồn data/logs.jsonl
+
+## Bước 1: lọc response_sent có latency_ms > 2000 (latency_threshold_ms của challenge) từ 09:17 UTC
+$ python -c "import json;[print(r[\"ts\"],r[\"correlation_id\"],r[\"feature\"],r[\"latency_ms\"],r[\"ttft_ms\"]) for r in map(json.loads,open(\"data/logs.jsonl\",encoding=\"utf-8\")) if r.get(\"event\")==\"response_sent\" and r[\"ts\"]>=\"2026-09-29T09:16\" and r[\"latency_ms\"]>2000]"
+2026-09-29T09:17:26.083293Z req-eeb02ed6 monitoring 2655 51
+2026-09-29T09:17:26.087697Z req-0799a78e monitoring 2655 50
+2026-09-29T09:17:26.091146Z req-34503a7a monitoring 2654 50
+2026-09-29T09:17:26.094147Z req-eb67e28b monitoring 2652 50
+2026-09-29T09:17:26.096715Z req-b9361df2 monitoring 2653 50
+
+## So sánh: request bình thường ngay trước sự cố (09:16 UTC)
+2026-09-29T09:16:16.210290Z req-22671e95 qa 153 50
+2026-09-29T09:16:16.215476Z req-9a6ef9fb summary 152 50
+2026-09-29T09:16:16.222602Z req-b1fdf4da qa 154 50
+
+## Bước 2: toàn bộ log của correlation_id req-eeb02ed6
+{"service": "api", "payload": {"message_preview": "How should an engineer investigate tail latency?"}, "event": "request_received", "session_id": "k4-l3a-challenge-s02", "correlation_id": "req-eeb02ed6", "user_id_hash": "aae0b94055a9", "model": "claude-sonnet-4-5", "feature": "monitoring", "env": "dev", "level": "info", "ts": "2026-09-29T09:17:23.419931Z"}
+{"service": "api", "latency_ms": 2655, "ttft_ms": 51, "tokens_in": 34, "tokens_out": 147, "cost_usd": 0.002307, "quality_score": 0.9, "tool_name": "retrieval", "tool_success": true, "payload": {"answer_preview": "Starter answer. You should improve this output logic and add better quality chec..."}, "event": "response_sent", "session_id": "k4-l3a-challenge-s02", "correlation_id": "req-eeb02ed6", "user_id_hash": "aae0b94055a9", "model": "claude-sonnet-4-5", "feature": "monitoring", "env": "dev", "level": "info", "ts": "2026-09-29T09:17:26.083293Z"}
+
+## Số request_failed trong khoảng sự cố
+0
+Challenge: day13-k4-l3a-monitoring-llmops-v1 | Cohort: K4
+[200] req-c12fb50f | monitoring | 190.9ms
+[200] req-5cee3f88 | monitoring | 199.4ms
+[200] req-3670c024 | monitoring | 202.7ms
+[200] req-985758d5 | monitoring | 205.3ms
+[200] req-8f51d772 | monitoring | 211.6ms
+
+## Sau khi tắt incident lúc 09:36:40 UTC (cùng 5 query challenge): server P95 = 156.0 ms; latency_ms: [156, 153, 155, 152, 154] ; correlation_id: ['req-c12fb50f', 'req-5cee3f88', 'req-3670c024', 'req-985758d5', 'req-8f51d772']

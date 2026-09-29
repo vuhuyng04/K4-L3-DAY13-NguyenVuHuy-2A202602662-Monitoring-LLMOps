@@ -9,7 +9,7 @@
 - **Lớp:** K4-L3A
 - **Repository URL:** https://github.com/vuhuyng04/K4-L3-DAY13-NguyenVuHuy-2A202602662-Monitoring-LLMOps
 - **Commit SHA cuối:** `<<điền SHA sau commit cuối>>`
-- **Challenge ID:** `<<điền sau CP3>>`
+- **Challenge ID:** `day13-k4-l3a-monitoring-llmops-v1`
 - **Tên project Langfuse cá nhân:** `day13-k4-l3a-2A202602662`
 
 ## 2. Evidence index
@@ -29,14 +29,14 @@
 | Dashboard runtime | [evidence/11-dashboard-overview.png](evidence/11-dashboard-overview.png) |
 | Incident metric | [evidence/12-incident-metric.png](evidence/12-incident-metric.png) |
 | Incident log | [evidence/13-incident-log.txt](evidence/13-incident-log.txt) |
-| Incident trace | [evidence/14-incident-trace.png](evidence/14-incident-trace.png) |
+| Incident trace | [evidence/14-incident-trace.png](evidence/14-incident-trace.png), [evidence/14b-incident-trace-span.png](evidence/14b-incident-trace-span.png) |
 | Baseline (trước khi sửa) | [evidence/baseline/](evidence/baseline/) |
 
 ## 3. Kết quả kỹ thuật
 
 | Nội dung | Baseline | Kết quả cuối | Nhận xét |
 |---|---|---|---|
-| `validate_logs.py` | 30/100 (thiếu required fields, 0 correlation ID, thiếu enrichment) | 100/100 | 129 correlation ID duy nhất, 0 record thiếu field |
+| `validate_logs.py` | 30/100 (thiếu required fields, 0 correlation ID, thiếu enrichment) | 100/100 | 306 log record, 151 correlation ID duy nhất, 0 record thiếu field |
 | `validate_dashboard.py` | 6/6 (contract có sẵn) | 6/6 | Có thêm dashboard runtime `scripts/dashboard.py` |
 | `pytest` | 22 passed | 34 passed | Thêm test PII, middleware, failure path, dashboard |
 | Số traces hợp lệ | 10 root span, không có child, `correlation_id=MISSING` | 106 trace có `correlation_id`, mỗi trace có root + 2 child | Kiểm bằng Langfuse `GET /api/public/v2/observations` |
@@ -111,18 +111,39 @@
 
 ## 7. Điều tra challenge
 
-> `<<Điền sau khi Lab Coach gửi config/challenge.json. Không commit file đó.>>`
+File challenge do Lab Coach gửi được lưu tại `config/challenge.json` (không sửa, đã `.gitignore`, không commit). Đã chạy `python scripts/inject_incident.py` rồi `python scripts/load_test.py --challenge --concurrency 5`. Challenge gồm 5 query của feature `monitoring`, ngưỡng `latency_threshold_ms = 2000`.
 
-- **Challenge ID:**
-- **Khoảng thời gian điều tra:**
-- **Triệu chứng từ metrics:**
-- **Log line và correlation ID liên quan:**
-- **Trace ID và span gây ảnh hưởng:**
-- **Root cause:**
-- **Fix action:**
+- **Challenge ID:** `day13-k4-l3a-monitoring-llmops-v1` (cohort K4)
+- **Khoảng thời gian điều tra:** 2026-09-29, **09:17:21 → 09:17:26 UTC** (16:17 giờ VN). Mốc so sánh: workload bình thường lúc 09:16 UTC. Xử lý lúc 09:36:40 UTC, xác nhận hồi phục ngay sau đó.
+- **Triệu chứng từ metrics** ([12-incident-metric.png](evidence/12-incident-metric.png)):
+
+  | Chỉ số | 09:16 (bình thường) | 09:17 (sự cố) |
+  |---|---:|---:|
+  | Latency P50 / P95 / P99 | 153 / 155 / 155 ms | 2654 / 2655 / 2655 ms |
+  | TTFT P95 | 51 ms | 51 ms |
+  | Error rate / retrieval success | 0% / 100% | 0% / 100% |
+
+  P95 tăng ~17 lần và vượt ngưỡng 2000 ms của challenge. Trên dashboard, panel latency bật **"Điều kiện alert: ChatLatencyP95High"** (P95 > 2000 ms), còn ngưỡng SLO 3000 ms chưa bị vượt. Vì TTFT không đổi và không có lỗi, phần chậm nằm **trước** bước LLM chứ không phải ở model.
+- **Log line và correlation ID liên quan** ([13-incident-log.txt](evidence/13-incident-log.txt)): lọc `response_sent` có `latency_ms > 2000` thì ra đúng 5 request challenge (`req-eeb02ed6`, `req-0799a78e`, `req-34503a7a`, `req-eb67e28b`, `req-b9361df2`). Chọn `req-eeb02ed6`:
+  `{"event": "response_sent", "correlation_id": "req-eeb02ed6", "feature": "monitoring", "latency_ms": 2655, "ttft_ms": 51, "tool_name": "retrieval", "tool_success": true, "ts": "2026-09-29T09:17:26.083293Z", ...}`
+- **Trace ID và span gây ảnh hưởng** ([14-incident-trace.png](evidence/14-incident-trace.png), [14b-incident-trace-span.png](evidence/14b-incident-trace-span.png)): trace `87361dc9440d9538f4d2a6a35e71958a` có metadata `correlation_id = req-eeb02ed6`, cùng request với log trên.
+
+  | Span | Thời gian |
+  |---|---:|
+  | `lab-agent-run` (root) | 2,66 s |
+  | `rag-retrieve` | **2,50 s** (`retrieval_ms = 2500`) |
+  | `llm-generate` | 0,153 s |
+
+  `rag-retrieve` chiếm ~94% thời gian. Cả 5 trace của challenge đều như vậy: `rag-retrieve` 2,501–2,503 s.
+- **Root cause:** bước retrieval (vector store) trả kết quả chậm khoảng 2,5 s mỗi request (incident `rag_slow`). Kết quả retrieval vẫn đúng (`doc_count = 1`, `tool_success = true`), nên không phát sinh lỗi mà chỉ tăng latency. LLM, prompt (v1 `production`) và chi phí đều không đổi.
+- **Fix action:** khôi phục retrieval về bình thường (`python scripts/inject_incident.py --disable`, tương đương failover sang replica/index khỏe). Chạy lại đúng 5 query challenge: `latency_ms` = 152–156 ms, P95 **156 ms**, xem cuối file [13-incident-log.txt](evidence/13-incident-log.txt).
 - **Preventive measure:**
+  1. Đặt timeout cho retrieval (ví dụ 800 ms, khoảng 5 lần P99 bình thường), quá hạn thì dùng câu trả lời fallback không cần docs và ghi `tool_success=false`. Latency khi đó bị chặn trên, còn sự cố chuyển thành tín hiệu lỗi retrieval mà `ChatErrorRateHigh` phát hiện được.
+  2. Thêm SLI/alert riêng cho span retrieval (P95 của `retrieval_ms` > 500 ms trong 5 phút) để phát hiện trước khi latency tổng vượt SLO.
+  3. Giữ alert `ChatLatencyP95High` ở 2000 ms. Sự cố này chỉ đẩy latency lên 2,66 s, dưới ngưỡng SLO 3000 ms, nên nếu chỉ alert theo SLO thì sẽ bỏ lỡ.
+  4. Thêm health check/canary định kỳ cho vector store và replica để failover tự động.
 
-*Diễn tập trước (practice `rag_slow`, không phải challenge chính thức):* dashboard báo latency P95 từ ~157 ms nhảy lên 2655 ms lúc 07:36 UTC, TTFT P95 vẫn 50 ms, nên chậm nằm **trước** LLM. Log `response_sent` của `req-5c2b5962` có `latency_ms=2655`, `ttft_ms=50`. Trace `a3fddacfb14b4b1921899bff8dd1df5e` cho thấy `rag-retrieve` = 2,502 s trên tổng 2,655 s, còn `llm-generate` = 0,152 s. Kết luận: retrieval chậm.
+*Diễn tập trước khi có challenge (practice `rag_slow`, không phải challenge chính thức):* dashboard báo latency P95 từ ~157 ms nhảy lên 2655 ms lúc 07:36 UTC, TTFT P95 vẫn 50 ms, nên chậm nằm **trước** LLM. Log `response_sent` của `req-5c2b5962` có `latency_ms=2655`, `ttft_ms=50`. Trace `a3fddacfb14b4b1921899bff8dd1df5e` cho thấy `rag-retrieve` = 2,502 s trên tổng 2,655 s, còn `llm-generate` = 0,152 s. Kết luận: retrieval chậm.
 
 ## 8. Giải thích và tự đánh giá
 
@@ -156,10 +177,10 @@
 
 ## 9. Checklist trước khi nộp
 
-- [ ] Kết quả và evidence thuộc commit SHA cuối.
-- [ ] Tất cả ảnh/output mở được bằng đường dẫn tương đối.
-- [ ] Incident evidence nối đúng metric → log → trace.
-- [ ] Trace/prompt evidence thuộc project Langfuse cá nhân và ảnh không lộ key/secret.
+- [x] Kết quả và evidence thuộc commit SHA cuối.
+- [x] Tất cả ảnh/output mở được bằng đường dẫn tương đối.
+- [x] Incident evidence nối đúng metric → log → trace.
+- [x] Trace/prompt evidence thuộc project Langfuse cá nhân và ảnh không lộ key/secret.
 - [x] Repository chạy lại được theo README.
 - [x] Không có secret, API key, PII thô hoặc evidence của người khác/lớp khác (`python scripts/scan_repo.py`: SẠCH).
 - [ ] URL repo và commit SHA cuối đã được nộp trên LMS/Codelabs.

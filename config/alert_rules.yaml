@@ -3,6 +3,7 @@ alerts:
     severity: P2-warning
     condition: 'p95(latency_ms) over event == "response_sent" > 2000 ms'
     duration: 5m
+    dashboard: {panel: latency, aggregation: p95, operator: lte, value: 2000}
     type: symptom-based
     channel: slack
     slack_channel: '#day13-l3a-oncall'
@@ -19,6 +20,7 @@ alerts:
       count(request_failed) / count(request_received) * 100 > 2
       OR count(tool_success == true) / count(tool_success != null) * 100 < 90
     duration: 5m
+    dashboard: {panel: errors, aggregation: error_rate_pct, operator: lte, value: 2}
     type: symptom-based
     channel: slack
     slack_channel: '#day13-l3a-oncall'

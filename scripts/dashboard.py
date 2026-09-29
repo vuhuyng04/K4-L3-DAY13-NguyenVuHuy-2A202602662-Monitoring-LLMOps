@@ -31,13 +31,29 @@ from app.cli import configure_utf8_stdio
 from app.metrics import percentile
 
 CONFIG_PATH = REPO_ROOT / "config" / "dashboard.yaml"
+ALERTS_PATH = REPO_ROOT / "config" / "alert_rules.yaml"
 LOG_PATH = REPO_ROOT / "data" / "logs.jsonl"
 
 
 def load_contract(path: Path = CONFIG_PATH) -> dict:
     dashboard = yaml.safe_load(path.read_text(encoding="utf-8"))["dashboard"]
     dashboard["panels_by_id"] = {panel["id"]: panel for panel in dashboard["panels"]}
+    dashboard["alerts_by_panel"] = load_alert_lines()
     return dashboard
+
+
+def load_alert_lines(path: Path = ALERTS_PATH) -> dict[str, list[dict]]:
+    """Ngưỡng alert có khai báo `dashboard:` trong alert_rules.yaml, nhóm theo panel."""
+    if not path.exists():
+        return {}
+    by_panel: dict[str, list[dict]] = {}
+    for alert in (yaml.safe_load(path.read_text(encoding="utf-8")) or {}).get("alerts", []):
+        line = alert.get("dashboard")
+        if isinstance(line, dict) and line.get("panel"):
+            by_panel.setdefault(line["panel"], []).append(
+                {**line, "name": alert["name"], "duration": alert.get("duration", "")}
+            )
+    return by_panel
 
 
 def parse_ts(value: str) -> datetime:
@@ -180,6 +196,7 @@ def svg_chart(
     threshold: dict | None,
     kind: str = "line",
     y_floor: float = 0.0,
+    alerts: list[dict] = (),
 ) -> str:
     minutes = ctx["minutes"]
     data_max = max([v for _, _, pts in series for _, v in pts] + [y_floor, 0])
@@ -187,7 +204,10 @@ def svg_chart(
     # Chỉ đưa threshold vào thang đo khi nó gần dữ liệu; nếu quá xa thì ghi chú để
     # không ép toàn bộ dữ liệu thành một đường phẳng dưới đáy.
     th_in_scale = th_value is not None and (data_max == 0 or th_value <= data_max * 4)
-    y_max = _nice_ceiling(max(data_max, th_value if th_in_scale else 0) * 1.1)
+    # Ngưỡng alert trùng threshold của contract thì không vẽ lại lần nữa.
+    alerts = [a for a in alerts if a["value"] != th_value]
+    alert_max = max([a["value"] for a in alerts] + [0])
+    y_max = _nice_ceiling(max(data_max, th_value if th_in_scale else 0, alert_max) * 1.1)
     if y_floor and data_max <= y_floor:
         y_max = y_floor  # thang cố định cho đại lượng có trần tự nhiên (100%, score 1.0)
     parts = [f'<svg viewBox="0 0 {W} {H}" role="img" class="chart">']
@@ -236,6 +256,11 @@ def svg_chart(
             parts.append(f'<text class="th-label" x="{PAD_L + 4}" y="{y - 4:.1f}">{label}</text>')
         else:
             parts.append(f'<text class="th-label" x="{PAD_L + 4}" y="{PAD_T + 2}">{label} · ngoài thang đo</text>')
+    for alert in alerts:
+        y = _y(alert["value"], y_max)
+        label = f"alert {alert['name']}: {alert['aggregation']} > {_fmt(alert['value'], unit)} trong {alert['duration']}"
+        parts.append(f'<line class="alert-line" x1="{PAD_L}" x2="{W - PAD_R}" y1="{y:.1f}" y2="{y:.1f}"/>')
+        parts.append(f'<text class="alert-label" x="{PAD_L + 4}" y="{y - 4:.1f}">{html.escape(label)}</text>')
     parts.append("</svg>")
     return "".join(parts)
 
@@ -253,16 +278,20 @@ def tile(label: str, value: str) -> str:
     return f'<div class="stat"><span>{html.escape(label)}</span><b>{html.escape(value)}</b></div>'
 
 
-def status_badge(is_breached: bool) -> str:
+def status_badge(is_breached: bool, fired: list[str] = ()) -> str:
+    if fired and not is_breached:
+        return f'<span class="badge warn">▲ Điều kiện alert: {html.escape(", ".join(fired))}</span>'
     if is_breached:
         return '<span class="badge bad">▲ Vượt ngưỡng</span>'
     return '<span class="badge ok">✓ Trong ngưỡng</span>'
 
 
-def panel_html(panel: dict, badge_breached: bool, stats: str, chart: str, legend_html: str) -> str:
+def panel_html(
+    panel: dict, badge_breached: bool, stats: str, chart: str, legend_html: str, fired: list[str] = ()
+) -> str:
     return (
         f'<section class="panel"><header><h2>{html.escape(panel["title"])}</h2>'
-        f'{status_badge(badge_breached)}</header>'
+        f'{status_badge(badge_breached, fired)}</header>'
         f'<p class="meta">unit: <code>{panel["unit"]}</code> · events: {", ".join(panel["events"])}</p>'
         f'<div class="stats">{stats}</div>{legend_html}{chart}</section>'
     )
@@ -292,6 +321,10 @@ def render(contract: dict, ctx: dict, refresh: bool) -> str:
     p = contract["panels_by_id"]
     s = ctx["summary"]
     has = lambda b: b.latency  # noqa: E731
+    alerts = contract.get("alerts_by_panel", {})
+
+    def fired(panel_id: str) -> list[str]:
+        return [a["name"] for a in alerts.get(panel_id, []) if breached(s[a["aggregation"]], a)]
 
     lat_series = [
         ("P50", C1, per_minute(ctx, lambda b: percentile(b.latency, 50) if has(b) else None)),
@@ -304,8 +337,9 @@ def render(contract: dict, ctx: dict, refresh: bool) -> str:
         breached(s["p95"], p["latency"]["threshold"]),
         tile("P50", f"{s['p50']:.0f} ms") + tile("P95", f"{s['p95']:.0f} ms")
         + tile("P99", f"{s['p99']:.0f} ms") + tile("TTFT P95", f"{s['ttft_p95']:.0f} ms"),
-        svg_chart(ctx, lat_series, "ms", p["latency"]["threshold"]),
+        svg_chart(ctx, lat_series, "ms", p["latency"]["threshold"], alerts=alerts.get("latency", [])),
         legend([(n, c) for n, c, _ in lat_series]),
+        fired("latency"),
     )
 
     traffic_series = [("requests/phút", C1, per_minute(ctx, lambda b: b.received or None))]
@@ -384,10 +418,10 @@ TEMPLATE = """<!doctype html>
 <title>{title}</title>
 <style>
 :root {{ color-scheme: light; --bg:#f9f9f7; --surface:#fcfcfb; --ink:#0b0b0b; --ink2:#52514e; --muted:#898781;
-  --grid:#e1e0d9; --axis:#c3c2b7; --border:rgba(11,11,11,.10); --crit:#d03b3b; --good:#006300;
+  --grid:#e1e0d9; --axis:#c3c2b7; --border:rgba(11,11,11,.10); --crit:#d03b3b; --good:#006300; --serious:#ec835a; --serious-ink:#b3501f;
   --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#4a3aa7; }}
 @media (prefers-color-scheme: dark) {{ :root {{ color-scheme: dark; --bg:#0d0d0d; --surface:#1a1a19; --ink:#fff;
-  --ink2:#c3c2b7; --grid:#2c2c2a; --axis:#383835; --border:rgba(255,255,255,.10); --good:#0ca30c;
+  --ink2:#c3c2b7; --grid:#2c2c2a; --axis:#383835; --border:rgba(255,255,255,.10); --good:#0ca30c; --serious-ink:#ec835a;
   --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#9085e9; }} }}
 body {{ margin:0; padding:20px 16px; background:var(--bg); color:var(--ink);
   font:14px system-ui,-apple-system,"Segoe UI",sans-serif; }}
@@ -407,6 +441,9 @@ h2 {{ font-size:15px; margin:0; }}
 .chart .grid {{ stroke:var(--grid); stroke-width:1; }} .chart .axis {{ stroke:var(--axis); stroke-width:1; }}
 .chart .tick {{ fill:var(--muted); font-size:10px; font-variant-numeric:tabular-nums; }}
 .chart .threshold {{ stroke:var(--crit); stroke-width:1.5; stroke-dasharray:6 4; }}
+.chart .alert-line {{ stroke:var(--serious); stroke-width:1.5; stroke-dasharray:2 3; }}
+.chart .alert-label {{ fill:var(--serious-ink); font-size:10px; font-weight:600; paint-order:stroke; stroke:var(--surface); stroke-width:3px; }}
+.badge.warn {{ color:var(--serious-ink); }}
 .chart .th-label {{ fill:var(--crit); font-size:10px; font-weight:600; paint-order:stroke; stroke:var(--surface); stroke-width:3px; }}
 .chart .dot {{ stroke:var(--surface); stroke-width:2; }}
 </style></head><body>
