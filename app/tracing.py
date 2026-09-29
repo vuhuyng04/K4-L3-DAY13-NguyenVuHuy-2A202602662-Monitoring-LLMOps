@@ -32,8 +32,27 @@ except ImportError:  # pragma: no cover - chỉ dùng khi chưa cài requirement
         yield
 
 
+class _NoopObservation:
+    def update(self, **kwargs: Any) -> "_NoopObservation":
+        return self
+
+
 def get_langfuse_client():
     return get_client()
+
+
+@contextmanager
+def start_observation(*, name: str, as_type: str = "span", **kwargs: Any):
+    """Mở child observation lồng dưới observation hiện tại (root `lab-agent-run`).
+
+    Dùng client của SDK trực tiếp để observation luôn gắn vào OTel context hiện tại;
+    khi chưa cài SDK thì trả về observation no-op để app vẫn chạy.
+    """
+    if not LANGFUSE_SDK_AVAILABLE:
+        yield _NoopObservation()
+        return
+    with get_client().start_as_current_observation(name=name, as_type=as_type, **kwargs) as obs:
+        yield obs
 
 
 def tracing_enabled() -> bool:
