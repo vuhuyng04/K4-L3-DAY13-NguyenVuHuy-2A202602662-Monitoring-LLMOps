@@ -17,3 +17,7 @@ req-b1000001 trace 084c1429a79c6e9b4092c7f3742f0f6f prompt day13-chat v1 label b
 req-c1000002 trace bf4e01c037a6e4e6fb3cfcad75df645f prompt day13-chat v2 label candidate  src langfuse
 req-d1000003 trace 5b7f8795f9b993a94471fb54c6b49619 prompt day13-chat v2 label production src langfuse  (sau promote)
 req-e1000004 trace 1fc9afcfc9b1c9a0c4bb78b0b83cc383 prompt day13-chat v1 label production src langfuse  (sau rollback)
+day13-chat v1: labels=['baseline']
+day13-chat v2: labels=['production', 'candidate', 'latest']
+day13-chat v1: labels=['production', 'baseline']
+day13-chat v2: labels=['candidate', 'latest']

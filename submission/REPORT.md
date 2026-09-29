@@ -22,10 +22,10 @@
 | Structured log | [evidence/04-structured-log.txt](evidence/04-structured-log.txt) |
 | PII redaction | [evidence/05-pii-redaction.txt](evidence/05-pii-redaction.txt) |
 | Trace list | [evidence/06-trace-list.png](evidence/06-trace-list.png) |
-| Trace waterfall | [evidence/07-trace-waterfall.png](evidence/07-trace-waterfall.png) |
+| Trace waterfall | [evidence/07-trace-waterfall.png](evidence/07-trace-waterfall.png) (trace `req-5c2b5962`, practice `rag_slow`) |
 | Trace metadata | [evidence/08-trace-metadata.png](evidence/08-trace-metadata.png) |
 | Prompt versions | [evidence/09-prompt-versions.png](evidence/09-prompt-versions.png) |
-| Prompt rollback | [evidence/10-prompt-rollback.png](evidence/10-prompt-rollback.png), [evidence/10-prompt-rollback-cli.txt](evidence/10-prompt-rollback-cli.txt) |
+| Prompt rollback | trước: [evidence/10a-prompt-promote-v2.png](evidence/10a-prompt-promote-v2.png) (production = v2) → sau: [evidence/10-prompt-rollback.png](evidence/10-prompt-rollback.png) (production = v1); log CLI: [evidence/10-prompt-rollback-cli.txt](evidence/10-prompt-rollback-cli.txt) |
 | Dashboard runtime | [evidence/11-dashboard-overview.png](evidence/11-dashboard-overview.png) |
 | Incident metric | [evidence/12-incident-metric.png](evidence/12-incident-metric.png) |
 | Incident log | [evidence/13-incident-log.txt](evidence/13-incident-log.txt) |
