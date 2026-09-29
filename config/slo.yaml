@@ -3,11 +3,29 @@ primary_slo:
   name: fast_successful_requests
   window: 28d
   sli:
+    # Request "tốt" = trả lời thành công VÀ latency phía server <= 3000 ms.
+    # Request lỗi (request_failed) hoặc chậm đều tiêu error budget.
     good_event: 'event == "response_sent" and latency_ms <= 3000'
     total_event: 'event == "request_received"'
   target_percent: 99.5
   error_budget_percent: 0.5
-  note: Học viên phải giải thích hoặc điều chỉnh ngưỡng bằng baseline của mình.
+  error_budget:
+    # budget = (1 - 0.995) x tổng request trong 28 ngày
+    formula: '(1 - target_percent / 100) * count(request_received, 28d)'
+    example_monthly_requests: 280000        # ~10.000 request/ngày x 28 ngày
+    example_budget_bad_requests: 1400       # 0,5% x 280.000
+    burn_rate_fast: '>= 14.4x trong 1h (tiêu 2% budget/giờ) -> page ngay'
+    burn_rate_slow: '>= 6x trong 6h -> ticket trong ngày'
+  rationale: >
+    Baseline đo trên máy lab (load_test --concurrency 5, prompt đã cache):
+    latency P50 ~150 ms, P95 ~160-520 ms, TTFT P95 ~50 ms, error rate 0%.
+    Giữ ngưỡng 3000 ms để khớp threshold P95 của dashboard contract (một con số
+    duy nhất cho cả SLO và dashboard), cao gấp ~6 lần P95 bình thường nên không
+    báo động giả khi Langfuse prompt fetch chậm lúc cache nguội (~2-3 s đầu tiên).
+    Target 99,5% thay vì 99,9% vì app phụ thuộc hai dịch vụ ngoài (vector store,
+    LLM) nằm ngoài quyền kiểm soát; 0,5% budget đủ cho một sự cố cỡ vài giờ/tháng.
+    Vì 3000 ms khá rộng (sự cố rag_slow chỉ đẩy latency lên ~2650 ms), cảnh báo
+    sớm được đặt ở P95 > 2000 ms trong config/alert_rules.yaml.
 guardrails:
   error_rate_pct_max: 2
   daily_cost_usd_max: 2.5

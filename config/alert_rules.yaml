@@ -1,25 +1,45 @@
 alerts:
-  - name: TODO_alert_1
-    severity: TODO
-    condition: TODO
-    duration: TODO
+  - name: ChatLatencyP95High
+    severity: P2-warning
+    condition: 'p95(latency_ms) over event == "response_sent" > 2000 ms'
+    duration: 5m
     type: symptom-based
     channel: slack
-    owner: TODO
-    runbook: docs/alerts.md#alert-1
-  - name: TODO_alert_2
-    severity: TODO
-    condition: TODO
-    duration: TODO
+    slack_channel: '#day13-l3a-oncall'
+    owner: nguyen-vu-huy (on-call LLM API)
+    slo: fast_successful_requests
+    rationale: >
+      Baseline P95 ~160-520 ms. 2000 ms là cảnh báo sớm trước khi chạm ngưỡng SLO
+      3000 ms; duy trì 5 phút để bỏ qua spike do cache prompt nguội sau restart.
+    runbook: docs/alerts.md#alert-1-chatlatencyp95high
+
+  - name: ChatErrorRateHigh
+    severity: P1-critical
+    condition: >
+      count(request_failed) / count(request_received) * 100 > 2
+      OR count(tool_success == true) / count(tool_success != null) * 100 < 90
+    duration: 5m
     type: symptom-based
     channel: slack
-    owner: TODO
-    runbook: docs/alerts.md#alert-2
-  - name: TODO_alert_3
-    severity: TODO
-    condition: TODO
-    duration: TODO
+    slack_channel: '#day13-l3a-oncall'
+    owner: nguyen-vu-huy (on-call LLM API)
+    slo: fast_successful_requests
+    rationale: >
+      Người dùng nhận HTTP 500. Error rate 2% trong 5 phút tiêu budget nhanh gấp 4
+      lần mức cho phép (0,5%), nên page ngay thay vì chờ ticket.
+    runbook: docs/alerts.md#alert-2-chaterrorratehigh
+
+  - name: ChatCostPerRequestSpike
+    severity: P3-ticket
+    condition: 'avg(cost_usd) over event == "response_sent" > 0.004 USD (≈2x baseline 0.0021)'
+    duration: 10m
     type: symptom-based
     channel: slack
-    owner: TODO
-    runbook: docs/alerts.md#alert-3
+    slack_channel: '#day13-l3a-cost'
+    owner: nguyen-vu-huy (LLMOps/FinOps)
+    slo: guardrails.daily_cost_usd_max
+    rationale: >
+      Baseline avg cost ~0.0021 USD/request (tokens_out TB ~130). Chi phí/request
+      gấp đôi trong 10 phút báo hiệu output dài bất thường hoặc prompt version mới
+      tốn token; phát hiện sớm trước khi vượt ngân sách ngày 2,5 USD.
+    runbook: docs/alerts.md#alert-3-chatcostperrequestspike
